@@ -9,7 +9,7 @@ interface PluginInterface
     public function register(): void;
 
     /**
-     * @return string[] List of supported environments
+     * @return list<non-empty-string>
      */
     public function getSupportedEnvironments(): array;
 }
