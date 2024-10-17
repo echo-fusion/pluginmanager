@@ -26,23 +26,76 @@ Here’s how to use the PluginManager to set up and run:
 
 ```php
 use EchoFusion\PluginManager\PluginManager;
+use Psr\Container\ContainerInterface;
 
-$plugins = [
-    'MyPlugin' => ['dev' => true],
-    'AnotherPlugin' => ['prod' => true],
-];
+$createPluginManager = function(ContainerInterface $container) {
 
-$pluginManager = new PluginManager($plugins);
+    $plugins = [
+        MyPlugin::class,     
+        AnotherPlugin::class, 
+    ];
+    
+    return new PluginManager($container, $plugins);
+}
 ```
 
 2. Register the plugins based on the current environment:
 
 ```php
-$environment = 'dev'; // or 'prod', etc.
-$pluginManager->register($environment);
+// Usage
+$container = // Your container implementation here
+$pluginManager = $createPluginManager($container);
+
+try {
+    // Register plugins for a specific environment (e.g., 'dev')
+    $pluginManager->register('dev');
+} catch (PluginManagerException $e) {
+    // Handle any exceptions related to plugin management
+    echo 'Error registering plugins: ' . $e->getMessage();
+} catch (Throwable $e) {
+    // General fallback for other types of exceptions
+    echo 'An unexpected error occurred: ' . $e->getMessage();
+}
 ```
 
-3. Ensure that your plugins implement the PluginInterface and have a register() method to handle the registration logic.
+3. Ensure that your plugins implement the PluginInterface:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace YourNamespace\Plugins;
+
+use EchoFusion\PluginManager\PluginInterface;
+use EchoFusion\PluginManager\Environment;
+
+class ExamplePlugin implements PluginInterface
+{
+    private $service; 
+    
+    public function register(): void
+    {
+        // Initialize the service
+        $this->service = $this->initializeService();
+
+        // Set up configurations
+        $this->configureSettings();
+
+        // Register event listeners
+        $this->registerEventListeners();
+
+        echo "ExamplePlugin has been registered successfully.\n";
+    }
+
+    public function getSupportedEnvironments(): array
+    {
+        return ['dev','prod']; 
+    }   
+    //...
+}
+
+```
 
 ## Testing
 
