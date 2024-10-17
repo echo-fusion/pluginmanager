@@ -2,84 +2,110 @@
 
 declare(strict_types=1);
 
+namespace EchoFusion\Tests\PluginManager;
+
 use EchoFusion\PluginManager\Exceptions\PluginManagerException;
+use EchoFusion\PluginManager\Exceptions\PluginNotRegisteredException;
 use EchoFusion\PluginManager\PluginInterface;
 use EchoFusion\PluginManager\PluginManager;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
+use function get_class;
 
 class PluginManagerTest extends TestCase
 {
-    public function testRegisterPluginForSupportedEnvironment()
+    private PluginManager $pluginManager;
+
+    private ContainerInterface $container;
+
+    protected function setUp(): void
     {
-        $mockPlugin = $this->createMock(PluginInterface::class);
-        $mockPlugin->method('register');
-        $mockPlugin->method('getSupportedEnvironments')->willReturn(['dev', 'test']);
+        // Mock the container interface
+        $this->container = $this->createMock(ContainerInterface::class);
 
-        $plugins = [
-            'MockPlugin' => $mockPlugin,
-        ];
+        // Mock valid plugins
+        $pluginMock1 = $this->createMock(PluginInterface::class);
+        $pluginMock1->method('getSupportedEnvironments')
+            ->willReturn(['dev', 'prod']);
 
-        $pluginManager = new PluginManager($plugins);
+        $pluginMock2 = $this->createMock(PluginInterface::class);
+        $pluginMock2->method('getSupportedEnvironments')
+            ->willReturn(['prod']);
 
-        $pluginManager->register('dev');
-        $this->assertTrue($pluginManager->isRegistered('MockPlugin'), 'The plugin should be registered in the dev environment.');
-
-        $pluginManager->register('test');
-        $this->assertTrue($pluginManager->isRegistered('MockPlugin'), 'The plugin should be registered in the test environment.');
+        // Instantiate PluginManager with valid plugins (but don't call register yet)
+        $this->pluginManager = new PluginManager(
+            $this->container,
+            [$pluginMock1, $pluginMock2]
+        );
     }
 
-    public function testDoNotRegisterPluginForUnsupportedEnvironment()
+    public function testRegisterPluginsForDevelopmentEnvironment(): void
     {
-        $mockPlugin = $this->createMock(PluginInterface::class);
-        $mockPlugin->method('register');
-        $mockPlugin->method('getSupportedEnvironments')->willReturn(['dev', 'test']);
+        $pluginMock = $this->createMock(PluginInterface::class);
+        $pluginMock->method('getSupportedEnvironments')->willReturn(['dev']);
+        $pluginMock->expects($this->once())->method('register');
 
-        $plugins = [
-            'MockPlugin' => $mockPlugin,
-        ];
+        $this->pluginManager = new PluginManager($this->container, [$pluginMock]);
+        $this->pluginManager->register('dev');
 
-        $pluginManager = new PluginManager($plugins);
-
-        $pluginManager->register('prod');
-        $this->assertFalse($pluginManager->isRegistered('MockPlugin'), 'The plugin should not be registered in the prod environment.');
+        $this->assertTrue($this->pluginManager->isRegistered(get_class($pluginMock)));
     }
 
-    public function testThrowsExceptionForInvalidPlugin()
+    public function testRegisterPluginsForProductionEnvironment(): void
+    {
+        $pluginMock = $this->createMock(PluginInterface::class);
+        $pluginMock->method('getSupportedEnvironments')->willReturn(['prod']);
+        $pluginMock->expects($this->once())->method('register');
+
+        $this->pluginManager = new PluginManager($this->container, [$pluginMock]);
+        $this->pluginManager->register('prod');
+
+        $this->assertTrue($this->pluginManager->isRegistered(get_class($pluginMock)));
+    }
+
+    public function testIsRegisteredReturnsFalseIfPluginIsNotRegistered(): void
+    {
+        $this->assertFalse($this->pluginManager->isRegistered('NonExistentPlugin'));
+    }
+
+    public function testGetPluginThrowsExceptionIfPluginIsNotRegistered(): void
+    {
+        $this->expectException(PluginNotRegisteredException::class);
+        $this->pluginManager->getPlugin('NonExistentPlugin');
+    }
+
+    public function testGetPluginReturnsPluginInstanceIfRegistered(): void
+    {
+        $pluginMock = $this->createMock(PluginInterface::class);
+        $pluginMock->method('getSupportedEnvironments')->willReturn(['dev']);
+        $this->container->expects($this->once())->method('get')->willReturn($pluginMock);
+
+        $this->pluginManager = new PluginManager($this->container, [$pluginMock]);
+        $this->pluginManager->register('dev');
+
+        $pluginInstance = $this->pluginManager->getPlugin(get_class($pluginMock));
+        $this->assertInstanceOf(PluginInterface::class, $pluginInstance);
+    }
+
+    public function testExceptionIsThrownForInvalidPlugin(): void
     {
         $this->expectException(PluginManagerException::class);
 
-        $invalidPlugin = new stdClass();
-        $plugins = [
-            'InvalidPlugin' => $invalidPlugin,
-        ];
+        // Invalid plugin (not implementing PluginInterface)
+        $invalidPlugin = new class() {
+        };
 
-        new PluginManager($plugins);
+        new PluginManager($this->container, [$invalidPlugin]);
     }
 
-    public function testRegisterMultiplePlugins()
+    public function testDoesNotRegisterPluginsForOtherEnvironments(): void
     {
-        $mockPluginA = $this->createMock(PluginInterface::class);
-        $mockPluginA->method('register');
-        $mockPluginA->method('getSupportedEnvironments')->willReturn(['dev']);
+        $pluginMock = $this->createMock(PluginInterface::class);
+        $pluginMock->method('getSupportedEnvironments')->willReturn(['prod']);
 
-        $mockPluginB = $this->createMock(PluginInterface::class);
-        $mockPluginB->method('register');
-        $mockPluginB->method('getSupportedEnvironments')->willReturn(['test']);
+        $this->pluginManager = new PluginManager($this->container, [$pluginMock]);
+        $this->pluginManager->register('dev');
 
-        $plugins = [
-            'PluginA' => $mockPluginA,
-            'PluginB' => $mockPluginB,
-        ];
-
-        $pluginManager = new PluginManager($plugins);
-
-        // Registering PluginA in 'dev' environment
-        $pluginManager->register('dev');
-        $this->assertTrue($pluginManager->isRegistered('PluginA'), 'PluginA should be registered in the dev environment.');
-        $this->assertFalse($pluginManager->isRegistered('PluginB'), 'PluginB should not be registered in the dev environment.');
-
-        // Registering PluginB in 'test' environment
-        $pluginManager->register('test');
-        $this->assertTrue($pluginManager->isRegistered('PluginB'), 'PluginB should be registered in the test environment.');
+        $this->assertFalse($this->pluginManager->isRegistered(get_class($pluginMock)));
     }
 }
