@@ -1,6 +1,6 @@
 {
     "name": "echo-fusion/pluginmanager",
-    "description": "A simple plugin manager package",
+    "description": "A flexible PHP package for managing and integrating plugins, allowing dynamic loading and registration based on application environments. Enhance the modularity and extensibility of your applications with ease.",
     "keywords": ["plugin manager"],
     "type": "library",
     "license": "MIT",
