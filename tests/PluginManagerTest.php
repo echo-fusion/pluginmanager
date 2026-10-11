@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace EchoFusion\Tests\PluginManager;
 
+use EchoFusion\Contracts\PluginManager\PluginInterface;
 use EchoFusion\PluginManager\Exceptions\PluginManagerException;
 use EchoFusion\PluginManager\Exceptions\PluginNotRegisteredException;
-use EchoFusion\PluginManager\PluginInterface;
 use EchoFusion\PluginManager\PluginManager;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

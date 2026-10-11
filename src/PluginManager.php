@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace EchoFusion\PluginManager;
 
+use EchoFusion\Contracts\PluginManager\PluginInterface;
+use EchoFusion\Contracts\PluginManager\PluginManagerInterface;
 use EchoFusion\PluginManager\Exceptions\PluginManagerException;
 use EchoFusion\PluginManager\Exceptions\PluginNotRegisteredException;
 use Psr\Container\ContainerInterface;
