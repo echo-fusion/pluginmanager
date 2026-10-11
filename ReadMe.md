@@ -67,7 +67,7 @@ declare(strict_types=1);
 
 namespace YourNamespace\Plugins;
 
-use EchoFusion\PluginManager\PluginInterface;
+use EchoFusion\Contracts\PluginManager\PluginInterface;
 use EchoFusion\PluginManager\Environment;
 
 class ExamplePlugin implements PluginInterface
