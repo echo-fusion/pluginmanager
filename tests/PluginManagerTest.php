@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace EchoFusion\Tests\PluginManager;
 
 use EchoFusion\Contracts\PluginManager\PluginInterface;
+use EchoFusion\Contracts\ServiceManager\SettableContainerInterface;
 use EchoFusion\PluginManager\Exceptions\PluginManagerException;
 use EchoFusion\PluginManager\Exceptions\PluginNotRegisteredException;
 use EchoFusion\PluginManager\PluginManager;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use stdClass;
 use function get_class;
 
@@ -17,12 +17,12 @@ class PluginManagerTest extends TestCase
 {
     private PluginManager $pluginManager;
 
-    private ContainerInterface $container;
+    private SettableContainerInterface $container;
 
     protected function setUp(): void
     {
         // Mock the container interface
-        $this->container = $this->createMock(ContainerInterface::class);
+        $this->container = $this->createMock(SettableContainerInterface::class);
 
         // Mock valid plugins
         $pluginMock1 = $this->createMock(PluginInterface::class);
@@ -155,7 +155,7 @@ class PluginManagerTest extends TestCase
         $plugin = new class() implements PluginInterface {
             public int $registered = 0;
 
-            public function register(): void
+            public function register(SettableContainerInterface $container): void
             {
                 ++$this->registered;
             }
@@ -180,7 +180,7 @@ class PluginManagerTest extends TestCase
     public function testAPluginForAnotherEnvironmentIsBuiltOnlyOnce(): void
     {
         $plugin = new class() implements PluginInterface {
-            public function register(): void
+            public function register(SettableContainerInterface $container): void
             {
             }
 
@@ -218,5 +218,28 @@ class PluginManagerTest extends TestCase
         $this->expectException(PluginManagerException::class);
         $this->expectExceptionMessage('The container did not return a plugin for');
         $manager->register('dev');
+    }
+
+    public function testThePluginReceivesTheContainerAndCanUseIt(): void
+    {
+        $plugin = new class() implements PluginInterface {
+            public ?SettableContainerInterface $received = null;
+
+            public function register(SettableContainerInterface $container): void
+            {
+                $this->received = $container;
+                $container->set('debug.bar', fn () => 'bar');
+            }
+
+            public function getSupportedEnvironments(): array
+            {
+                return ['dev'];
+            }
+        };
+        $this->container->expects($this->once())->method('set')->with('debug.bar');
+
+        (new PluginManager($this->container, [$plugin]))->register('dev');
+
+        $this->assertSame($this->container, $plugin->received);
     }
 }

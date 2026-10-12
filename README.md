@@ -16,83 +16,42 @@ composer require echo-fusion/pluginmanager
 
 * PHP 8.1, 8.2 or 8.3
 
+## What a plugin is for
+
+A **plugin** is an optional feature that is switched on for certain environments (`dev`, `test`, `prod` ...) and is given the container so it can wire itself in. Typical plugins: a debug bar or profiler only in `dev`, a fake mailer in `test`, an error tracker only in `prod`, a feature flag, or an add-on that attaches listeners and adds services.
+
+It is not a service container (that is `servicemanager`, which decides *how objects are built*), and it differs from a module (`modulemanager`), which *declares data*: config, providers, routes, templates. A plugin *runs code* at start-up.
+
 ## Usage
 
-Here’s how to use the PluginManager to set up and run:
-
-1. Instantiate the PluginManager with an array of plugins, specifying the environments in which they should be loaded:
-
 ```php
-use EchoFusion\PluginManager\PluginManager;
-use Psr\Container\ContainerInterface;
-
-$createPluginManager = function(ContainerInterface $container) {
-
-    $plugins = [
-        MyPlugin::class,     
-        AnotherPlugin::class, 
-    ];
-    
-    return new PluginManager($container, $plugins);
-}
-```
-
-2. Register the plugins based on the current environment:
-
-```php
-// Usage
-$container = // Your container implementation here
-$pluginManager = $createPluginManager($container);
-
-try {
-    // Register plugins for a specific environment (e.g., 'dev')
-    $pluginManager->register('dev');
-} catch (PluginManagerException $e) {
-    // Handle any exceptions related to plugin management
-    echo 'Error registering plugins: ' . $e->getMessage();
-} catch (Throwable $e) {
-    // General fallback for other types of exceptions
-    echo 'An unexpected error occurred: ' . $e->getMessage();
-}
-```
-
-3. Ensure that your plugins implement the PluginInterface:
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace YourNamespace\Plugins;
-
 use EchoFusion\Contracts\PluginManager\PluginInterface;
+use EchoFusion\Contracts\ServiceManager\SettableContainerInterface;
+use EchoFusion\PluginManager\PluginManager;
 
-class ExamplePlugin implements PluginInterface
+final class DebugBarPlugin implements PluginInterface
 {
-    private $service; 
-    
-    public function register(): void
+    public function register(SettableContainerInterface $container): void
     {
-        // Initialize the service
-        $this->service = $this->initializeService();
-
-        // Set up configurations
-        $this->configureSettings();
-
-        // Register event listeners
-        $this->registerEventListeners();
-
-        echo "ExamplePlugin has been registered successfully.\n";
+        // use anything the container knows: attach a listener, add a service, replace an implementation
+        $container->get(EventManagerInterface::class)->attach('response.ready', new DebugBarListener());
+        $container->set(MailerInterface::class, fn () => new LogMailer());
     }
 
     public function getSupportedEnvironments(): array
     {
-        return ['dev','prod']; 
-    }   
-    //...
+        return ['dev', 'test'];
+    }
 }
 
+$pluginManager = new PluginManager($container, [DebugBarPlugin::class, new ErrorTrackerPlugin($sentry)]);
+$pluginManager->register('dev');            // DebugBarPlugin::register() runs; plugins for other environments do not
+
+$pluginManager->isRegistered(DebugBarPlugin::class);   // true
+$pluginManager->getPlugin(DebugBarPlugin::class);      // the registered instance
 ```
+
+`$container` is a `SettableContainerInterface` (a PSR-11 container that also has `set()`); `servicemanager` provides one.
 
 ## Plugins by class name
 

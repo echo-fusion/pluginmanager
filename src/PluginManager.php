@@ -6,9 +6,9 @@ namespace EchoFusion\PluginManager;
 
 use EchoFusion\Contracts\PluginManager\PluginInterface;
 use EchoFusion\Contracts\PluginManager\PluginManagerInterface;
+use EchoFusion\Contracts\ServiceManager\SettableContainerInterface;
 use EchoFusion\PluginManager\Exceptions\PluginManagerException;
 use EchoFusion\PluginManager\Exceptions\PluginNotRegisteredException;
-use Psr\Container\ContainerInterface;
 use function get_debug_type;
 use function in_array;
 use function is_string;
@@ -38,12 +38,12 @@ class PluginManager implements PluginManagerInterface
      * constructor dependencies are auto-wired) the first time `register()` needs it. Because the plugin must
      * be asked which environments it supports, keep plugin constructors cheap.
      *
-     * @param ContainerInterface $container the container that builds plugins given by class name
+     * @param SettableContainerInterface $container builds plugins given by class name, and is handed to every plugin's register()
      * @param array<PluginInterface|class-string<PluginInterface>> $plugins the plugins
      *
      * @throws PluginManagerException if an entry is not a plugin object or the name of a plugin class
      */
-    public function __construct(private ContainerInterface $container, array $plugins)
+    public function __construct(private SettableContainerInterface $container, array $plugins)
     {
         foreach ($plugins as $plugin) {
             if ($plugin instanceof PluginInterface) {
@@ -88,7 +88,7 @@ class PluginManager implements PluginManagerInterface
                 continue;
             }
 
-            $plugin->register();
+            $plugin->register($this->container);
             $this->registeredPlugins[$plugin::class] = $plugin;
             $this->plugins[$index] = $plugin;
         }
