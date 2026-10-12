@@ -94,6 +94,20 @@ class ExamplePlugin implements PluginInterface
 
 ```
 
+## Plugins by class name
+
+A plugin can be an object or the **class name** of a plugin. A class name is built by the container (constructor dependencies are auto-wired) the first time `register()` needs it:
+
+```php
+$pluginManager = new PluginManager($container, [
+    DebugBarPlugin::class,          // built by the container
+    new ErrorTrackerPlugin($sentry), // or an object you already have
+]);
+$pluginManager->register('dev');
+```
+
+The manager has to ask a plugin which environments it supports before it can skip it, so every plugin is built once even when it is not for the current environment. Keep plugin constructors cheap.
+
 ## Behaviour worth knowing
 
 * `register($environment)` runs a plugin's `register()` **once**, only for plugins whose `getSupportedEnvironments()` contains the environment. Calling it again does not run them again.

@@ -10,6 +10,7 @@ use EchoFusion\PluginManager\Exceptions\PluginNotRegisteredException;
 use EchoFusion\PluginManager\PluginManager;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use stdClass;
 use function get_class;
 
 class PluginManagerTest extends TestCase
@@ -136,7 +137,7 @@ class PluginManagerTest extends TestCase
     public function testInvalidPluginsAreNamedInTheMessage(): void
     {
         $this->expectException(PluginManagerException::class);
-        $this->expectExceptionMessage('Plugin string does not implement PluginInterface.');
+        $this->expectExceptionMessage('Plugin not-an-object does not implement PluginInterface.');
 
         new PluginManager($this->container, ['not-an-object']);
     }
@@ -147,5 +148,75 @@ class PluginManagerTest extends TestCase
         $this->expectExceptionMessage("Plugin 'Some\\Plugin' is not registered.");
 
         $this->pluginManager->getPlugin('Some\\Plugin');
+    }
+
+    public function testPluginsCanBeGivenByClassNameAndAreBuiltByTheContainer(): void
+    {
+        $plugin = new class() implements PluginInterface {
+            public int $registered = 0;
+
+            public function register(): void
+            {
+                ++$this->registered;
+            }
+
+            public function getSupportedEnvironments(): array
+            {
+                return ['dev'];
+            }
+        };
+        $class = get_class($plugin);
+        $this->container->expects($this->once())->method('get')->with($class)->willReturn($plugin);
+
+        $manager = new PluginManager($this->container, [$class]);
+        $manager->register('dev');
+        $manager->register('dev');
+
+        $this->assertSame(1, $plugin->registered);
+        $this->assertTrue($manager->isRegistered($class));
+        $this->assertSame($plugin, $manager->getPlugin($class));
+    }
+
+    public function testAPluginForAnotherEnvironmentIsBuiltOnlyOnce(): void
+    {
+        $plugin = new class() implements PluginInterface {
+            public function register(): void
+            {
+            }
+
+            public function getSupportedEnvironments(): array
+            {
+                return ['prod'];
+            }
+        };
+        $class = get_class($plugin);
+        $this->container->expects($this->once())->method('get')->willReturn($plugin);
+
+        $manager = new PluginManager($this->container, [$class]);
+        $manager->register('dev');
+        $manager->register('dev');
+
+        $this->assertFalse($manager->isRegistered($class));
+    }
+
+    public function testAClassNameThatIsNotAPluginIsRejected(): void
+    {
+        $this->expectException(PluginManagerException::class);
+        $this->expectExceptionMessage('Plugin stdClass does not implement PluginInterface.');
+
+        new PluginManager($this->container, [stdClass::class]);
+    }
+
+    public function testTheContainerMustReturnAPlugin(): void
+    {
+        $plugin = $this->createMock(PluginInterface::class);
+        $class = get_class($plugin);
+        $this->container->method('get')->willReturn(new stdClass());
+
+        $manager = new PluginManager($this->container, [$class]);
+
+        $this->expectException(PluginManagerException::class);
+        $this->expectExceptionMessage('The container did not return a plugin for');
+        $manager->register('dev');
     }
 }
