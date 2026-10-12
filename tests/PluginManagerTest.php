@@ -78,13 +78,12 @@ class PluginManagerTest extends TestCase
     {
         $pluginMock = $this->createMock(PluginInterface::class);
         $pluginMock->method('getSupportedEnvironments')->willReturn(['dev']);
-        $this->container->expects($this->once())->method('get')->willReturn($pluginMock);
+        $this->container->expects($this->never())->method('get');
 
         $this->pluginManager = new PluginManager($this->container, [$pluginMock]);
         $this->pluginManager->register('dev');
 
-        $pluginInstance = $this->pluginManager->getPlugin(get_class($pluginMock));
-        $this->assertInstanceOf(PluginInterface::class, $pluginInstance);
+        $this->assertSame($pluginMock, $this->pluginManager->getPlugin(get_class($pluginMock)), 'the registered instance, not a new one');
     }
 
     public function testExceptionIsThrownForInvalidPlugin(): void
@@ -107,5 +106,46 @@ class PluginManagerTest extends TestCase
         $this->pluginManager->register('dev');
 
         $this->assertFalse($this->pluginManager->isRegistered(get_class($pluginMock)));
+    }
+
+    public function testAPluginIsRegisteredOnlyOnce(): void
+    {
+        $plugin = $this->createMock(PluginInterface::class);
+        $plugin->method('getSupportedEnvironments')->willReturn(['dev', 'prod']);
+        $plugin->expects($this->once())->method('register');
+
+        $manager = new PluginManager($this->container, [$plugin]);
+        $manager->register('dev');
+        $manager->register('dev');
+        $manager->register('prod');
+
+        $this->assertTrue($manager->isRegistered(get_class($plugin)));
+    }
+
+    public function testThePluginRegistrationDoesNotTouchTheContainer(): void
+    {
+        $plugin = $this->createMock(PluginInterface::class);
+        $plugin->method('getSupportedEnvironments')->willReturn(['dev']);
+        $this->container->expects($this->never())->method('get');
+
+        $manager = new PluginManager($this->container, [$plugin]);
+        $manager->register('dev');
+        $manager->getPlugin(get_class($plugin));
+    }
+
+    public function testInvalidPluginsAreNamedInTheMessage(): void
+    {
+        $this->expectException(PluginManagerException::class);
+        $this->expectExceptionMessage('Plugin string does not implement PluginInterface.');
+
+        new PluginManager($this->container, ['not-an-object']);
+    }
+
+    public function testPluginNotRegisteredMessageNamesTheClass(): void
+    {
+        $this->expectException(PluginNotRegisteredException::class);
+        $this->expectExceptionMessage("Plugin 'Some\\Plugin' is not registered.");
+
+        $this->pluginManager->getPlugin('Some\\Plugin');
     }
 }
