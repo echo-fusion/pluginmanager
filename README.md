@@ -94,6 +94,11 @@ class ExamplePlugin implements PluginInterface
 
 ```
 
+## Behaviour worth knowing
+
+* `register($environment)` runs a plugin's `register()` **once**, only for plugins whose `getSupportedEnvironments()` contains the environment. Calling it again does not run them again.
+* `getPlugin(Foo::class)` returns the very instance that was registered (it does not ask the container for a new one), and throws `PluginNotRegisteredException` when that plugin was not registered for the current environment.
+
 ## Testing
 
 ```bash
